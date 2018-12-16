@@ -1,0 +1,5 @@
+c(translate).
+translate:start_link().
+
+translate:translate("hola").
+gen_server:call(translate, {translate,"hola"}).

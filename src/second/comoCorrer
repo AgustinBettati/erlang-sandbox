@@ -1,0 +1,5 @@
+c(server).
+c(translate).
+server:start(translator, translate).
+server:call(translator, {translate, "hola"}).
+"hello"

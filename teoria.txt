@@ -1,0 +1,342 @@
+-- PRIMERA CLASE --
+
+% Lenguaje creada por Ericson, 1986
+
+Whatsapp, LoL, CoD tienen el backend implementado en erlang
+Es un lenguaje de nicho, pero donde se usa da resultados muy buenos.
+
+Diferencia entre un Actor y un Objeto
+
+cada Actor tiene su pequeña maquina virtual, y si falla es independiente del resto del sistema
+Mensajes es la unica manera de comunicarse entre actores
+
+estructuras mutables de java se corrompen si se modifican al mismo tiempo
+el uso de memoria compartida limita la concurrencia. (Usando syncronized)
+
+En el modelo de actores no se comparte memoria, cada actor tiene sus propias estructuras
+
+En java para agregar concurrencia se maneja con threads que puede agregar mucha complejidad.
+En el modelo de actores, por defecto se maneja todo de manera asincronica
+
+Erlang es un lenguaje dinamico, podria haber sido estatico tranquilamente.
+
+Atomo: variable que puede contener un unico valor inmutable. se escriben en minuscula
+Se usa para identificar cosas.
+
+todas la variables tiene que empezar en mayuscula, y son inmutables.
+f(A). te permite que una variable ya no contenga el valor que tenia
+f(). se olvida de todas las variables
+
+L = [2, 3]
+
+F = [4 | L]
+nueva lista f que tiene L con el elemento 4 agregado
+Cuando se agrega a una lista, por defecto se agrega al principio para tener eficiencia de memoria
+Si agrego al final tendria que duplicar todo los elementos de la lista
+
+Cuando estructuras son inmutables, se pueden acceder por muchos threads de manera asincronica sin tener bloqueos.
+
+En java cuando se devuelve una lista, es buen diseño devolver una copia para que no se modifiquen lo datos desde afuera.
+
+Java es orientado al desarrollo no concurrente.
+
+Los lenguajes funcionales son ideales para la concurrencia (estructuras inmutables, )
+
+-- Tuplas y Listas --
+Tupla es una estructura que en cada posicion puede tener distintos tipos. {1,dos,"tres"}
+En erlang una lista tambien puede tener distintos tipos porque no es estatico. (Nunca declaras los tipos)
+
+Numbers = [1,2,3].
+
+parametros tambien en mayuscula
+lists:map(fun(X) -> X + 1 end, Numbers)
+
+
+Y = 3.
+lists:map(fun(X) -> X + Y end, Numbers)
+En un lenguaje funcional, las funciones solo pueden usar sus parametros. Un closure busca en su scope si encuentra Y.
+
+Inc = fun(X) -> X + 1 end.
+En variables se pueden guardar funciones
+
+Erlang no es puramente funcional porque funciones pueden recibir mensajes de otros actores dentro de una funcion,
+por lo cual esta utilizando algo mas alla de sus parametros.
+
+% Pattern Matching
+L = [1,2,3]
+[E1, E2, E3] = L
+[E1 | L2] = L
+
+Persona = {pepe, 35}.
+{Nombre, Edad} = Persona.
+
+Funcion = fun([H|T]) -> H + 3 end.
+Funcion([1,2]).   Esto devuelve 4
+
+M = #{b => 1, a => 2}.
+M2 = M#{c => 3}.
+
+#{c := B} = M2.
+
+B ahora tiene el valor 3
+
+[X * 2 || X <- [1,2,3], X =< 4].
+map                     filter
+primero hago el filter
+[2,4,6]
+
+Person = {person, {name, "John"}, {age, 30}}.
+{person, {name, Name}, {age, Age}} = Person.
+en Name y Age tengo los datos.
+
+Value = fun (X) -> if X > 0 -> positive; X < 0 -> negative;true -> zero end end.
+
+Para compilar un modulo se usa c(test). siendo test el nombre del modulo
+
+despues puedo llamar a test:factorial
+
+fac(0) -> 1;
+fac(N) when N > 0 -> N * fac(N-1).
+
+Esto esta evitando cargar el stack
+fac2(N) -> fac2(N, 1).
+fac2(0, Acc) -> Acc.
+fac2(N, Acc) -> fac2(N-1, Acc * N).
+
+-- Optimizacion tail recursion --
+Todos los lenguajes funcionales manejan la optimizacion de tail recursion.
+No usa memoria para cada stack, sino simplemente un contador de las veces que se llama.
+Unicamente funciona cuando la funcion se llama a si misma, sino ningun tipo de operacion por afuera.
+
+otro ejemplo de optimizar recursion
+len([]) -> 0.
+len([_|T]) -> 1 + len(T).
+
+len2(L) -> len2(L, 0).
+len2([],Acc) -> Acc.
+len2([_|T], Acc) -> len2(T, 1 + Acc).
+
+
+-- Actores y mensajes --
+Lo importante de orientacion a objetos son los mensajes, no los objetos.
+en oop puro, un metodo puede manejar muchos mensajes.
+
+cada actor tiene su propio estado.
+
+A ! {saludo, "hola"}   se manda un mensaje al actor A
+
+recieve
+    Match -> Expr1
+after Delay ->
+    Expr2
+end.
+
+
+queda suspendido en el recieve hasta que recive un mensaje
+
+loop() ->
+  receive
+    { From, "hola" } ->
+      From ! "hello",
+      loop();
+
+    { From, "mundo"} ->
+      From ! "world",
+      loop();
+
+    { From, _} ->
+      From ! "???",
+      loop()
+  end.
+
+
+Translator = spawn(fun translate:loop/0).
+
+flush() imprimime los mensajes recibidos y los borra.
+
+Cualquier estado se tiene que ir pasando por las funciones.
+
+En erlang con cada actor tiene un JVM pequeña, el gc es propio para cada actor
+
+el register es un map que me permite guardar informacion.
+register(translator, Translator).
+
+
+on_exit(Pid, Fun) ->
+  spawn(fun() ->
+    process_flag(trap_exit, true),
+    link(Pid),
+    receive
+      { 'EXIT', Pid, Why} -> Fun(Why)
+    end
+  end).
+
+keep_alive(Name, F) ->
+%%  register es un mapa
+  register(Name, Pid = spawn(F)),
+  on_exit(Pid, fun(_Why) -> keep_alive(Name, F) end).
+
+
+% Para correr el keep alive
+errors:keep_alive(actor, fun() -> errors:f(5) end).
+
+% Para correr el translator
+Translator = spawn(fun translate:loop/0).
+<0.77.0>
+2> Translator ! {self(), {stats}}.
+{<0.75.0>,{stats}}
+3> flush().
+Shell got {ok,[]}
+ok
+
+
+-- SEGUNDA CLASE --
+
+
+Cuando ejecuto un programa, se conoce como un proceso.
+Unix fue el pionero en poner memoria particular para cada proceso.
+
+Los threads dentro de la jvm comparten memoria entre si, un problema afecta a todos
+
+Para tener concurrencia, no se requiere de multiple cores. se corre un tread, se frena y mientras se corre el otro, y asi sucesivamente.
+Esto lleva a content switching que puede ser muy lento.
+
+Paralelismo se da con multiples cores, en el cual dos threads corren en el mismo tiempo.
+
+
+erlang garantiza que un actor en cierto momento esta corriendo unicamente por un thread
+
+proceso (tiene la memoria aislada)  <- la jvm es un proceso
+thread (contenido de un proceso, que pueden o no compartir la memoria)
+
+en java se usa akka para el modelo de actores. No nos da el aslamiento de memoria que tenemos de erlang, y hay
+ciertas excepciones que cortan la jvm entera (MemoryOutOfBound)
+
+
+Cluster: conjunto de maquinas que funcionan en conjunto.
+
+erl -name n1@127.0.0.1 -set cookie abc
+
+adentro, con node(). me devuelve su nombre
+
+net_kernel:connect_node('n2@127.0.0.1').
+si haces nodes(). me da un arreglo con las maquinas que conoce
+
+para comunicarme con otra maquina necesito de su address, pero cuando son muchas al conectarme a una ya me conecto a todas.
+se puede mantener un registry global, global: register_name(translator, Translator)
+desde otra maquina global:whereis_name(translator).
+un cluster se manda mensajes permanentemente entre ellos.
+
+puede registrar un maquina haciendo el connect a una sola maquina, y despues uso
+global:whereis_name(translator) ! {slef(), {translate, "hola"}}.
+
+La maquina se puede ver como un organismo, que tiene celulas(actores), pero para que sea robusto se requiere de un organismo
+Esta coneccion de muchas maquinas se puede ver como un virtual machine grande.
+
+En java para llamar al metodo de otra maquina seria un quilombo.
+
+El shell es un actor, entonces tiene ciertos
+
+
+% Lenguajes alternativos a erlang
+erlang: let it crash
+
+erlang es un maquina virtual (beam), y tiene otros lenguajes dentro de es maquina (al igual que java con scala/kotlin/groovy)
+uno de estos es ELIXIR, que tiene lo mimso que erlang pero con una sintaxis mas amigable
+Si arranco algo con erlang, lo haria con elixir - "Fer"
+Un framework web de elixir es phoenix.
+
+lenguajes dinamicos son mas lentos que los dinamicos.
+Erlang para algoritmos largos va ser mas lento, pero para sistemas distribuidos y concurrentes es ideal
+
+
+% Hacer un framework para manejar las cosas de manera generica
+por ahora es todo muy especifico.
+los actores lo vamos a poder crear como un conjunto de funciones
+
+La inmutabilidad asegura que ninguna estructura se puede corromper, siempre podemos hacer un rollback al estado anterior.
+
+Codigo de un actor se puede cambiar mientras esta corriendo. (CODE SWAP)
+
+
+-hacer rollback al estado.
+-hay errores de tipo, pero el organismo nunca llega a fallar.
+
+
+-- TERCERA CLASE --
+
+erlang ya tiene implementado un servidor generico: GenServer
+ya tiene 20 años de uso, por lo cual nunca lo vamos a implementar nosotros
+
+Gen server basicamente tiene mucho comportamiento, y te pide desarrollar ciertos metodos que manejan.
+adentro de un gen server hay un actor.
+
+Erlang se compone de un sistema de actores, en el cual hay un jerarquia de supervisores.
+todos los workers tienen un supervisor.
+Para guardar datos se una mnesia.
+
+% Records
+records son tuplas en las cuales les definimos cierto orden y nombres
+-record(person, {name, age}).
+
+first_person() ->
+  #person{name = "Juan", age = 25}.
+
+cuando te devuelve el person lo devuelve como {person, "Juan", 25}
+
+rr(records). //register records
+ahora te lo devuelve como un register #person{name = "Juan", age = 25}
+
+records me permite usar pattern matching
+
+#person{name = N, age = A} = P
+en N y A obtengo los valores
+
+P#person.name //variable que es de tipo person, dame su name
+
+funcion que recibe una persona y devuelve un string
+edad(#person{edad = 0}) = "Recien nacido"
+edad(#person{edad = A}) = A.
+
+
+% Bret Victor | the future of programming / inventing on principle
+
+% Ejercicios
+(1) Implementar un proceso en Erlang (sin gen_server) que permita mantener una
+lista compartida de elementos. Debe ser capaz de responder a los siguientes mensajes:
+
+ {store, Item}
+ {take, Item}
+ {list}
+
+Puede utilizar las funciones
+
+ lists:member(Item, List)
+ lists:delete(Item, List)
+
+(2) Implementar un proceso en Erlang que permita mantener las cotizaciones de un conjunto de acciones de la
+bolsa. El proceso debe responder a los mensajes:
+
+   {crear_accion, "IBM", 12}         ---> {ok}
+   {consultar_valor, "IBM"}          ---> {ok, 12}
+   {cambiar_cotizacion, "IBM", 12.3} ---> {ok}
+   {consultar_historia, "IBM"}       ---> {ok, [12.3, 12]}
+
+Nota: puede utilizar las funciones (opcional)
+        dict:new() -> Dict,
+        dict:store(Key, Value, Dict) -> Dict,
+        dict:find(Key, Dict) -> Dict
+
+(3) Reimplementar la siguiente función de modo que pueda aplicarse la optimizacion para "Tail Recursion":
+
+        len([]) -> 0;
+        len([_|T]) -> 1 + len(T).
+
+
+-lista de contactos
+-banco
+-chat system (usando gen server)
+existe un chat_system (global), un chat_room, el shell
+chat room va tener un dict con las personas presentes, cuando llega un mensaje recorre el dict y manda un mensaje
+a todos.
+
